@@ -1,0 +1,6 @@
+# OGP source and recorder (not part of the tool)
+media/
+# fetched for the Node test
+_dev/jszip.min.js
+# NPC text copied from scenarios (copyrighted; local tests only)
+_dev/samples/

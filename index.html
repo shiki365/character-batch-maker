@@ -1,0 +1,678 @@
+<!doctype html>
+<html lang="ja" data-langs="ja en ko">
+<head>
+<meta charset="utf-8">
+<script src="i18n.v1.js"></script>
+<script src="lang.en.v1.js?v=4"></script>
+<script src="lang.ko.v1.js?v=4"></script>
+<script src="theme.v1.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>キャラクター一括メーカー | ココフォリア</title>
+<meta name="description" content="シナリオの NPC を数行のメモ書きや表から、ココフォリアのキャラクター（駒）としてまとめて作ります。ステータス・パラメータ・チャットパレット・立ち絵・表情の差分まで入ったルームデータ（ZIP）を書き出し、読み込むだけです。">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="キャラクター一括メーカー">
+<meta property="og:title" content="キャラクター一括メーカー">
+<meta property="og:description" content="NPC を数行で打ち込んで画像を入れるだけで、ココフォリアの駒をまとめて作れます。ステータス・チャットパレット・立ち絵・表情の差分つき。ルームデータ（ZIP）を読み込むだけ。無料・登録不要。">
+<meta property="og:url" content="https://shiki365.github.io/character-batch-maker/">
+<meta property="og:image" content="https://shiki365.github.io/character-batch-maker/ogp.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="キャラクター一括メーカー － NPC を数行で打ち込んで、ココフォリアの駒をまとめて作成">
+<meta property="og:locale" content="ja_JP">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<style>
+  /* The shared look of the shiki365 tools ("Verdigris"): a tabletop at night (dark) and a character sheet (light).
+     This block is the same in every tool: its source is _dev/design/tool.css in the shiki365.github.io
+     repository (put in by _dev/design/apply.js). Rules for one tool only go after it, under "This tool only".
+     Ink-navy surfaces, paper-white text, one verdigris signal color that is never confused with the
+     orange warnings. Headings sit on a rule like the sections of a character sheet; every control has the
+     same visible edge; the preview is left plain so nothing looks like part of the user's design.
+     Sections: tokens (dark, light) / page / panel and tabs / rows and controls / preview column / notes. */
+  :root {
+    color-scheme: dark;
+    --bg: #10141a; --panel: #171c24; --raised: #1e242e; --line: #2c3440; --line-soft: #222a35;
+    --frame: #6b7686;   /* edges of boxes and controls: 3:1 or more against --bg and --panel */
+    --fg: #e9e6df; --muted: #9ba4ae; --accent: #5ccfc0; --link: #7fdccf;
+    --button: #5ccfc0; --button-fg: #06211d; --button-hover: #7adbce;
+    --field: #0c0f14; --control: #232b36; --control-hover: #2d3744;
+    --pick: #17302f; --warn: #ffb86b; --error: #ff8f8f; --danger-bg: #4a2529; --danger-line: #a05560;
+    --mono: Consolas, "BIZ UDGothic", ui-monospace, monospace;
+  }
+  /* Light: follows the OS, unless a choice made with the switch (theme.v1.js) sets data-theme. */
+  @media (prefers-color-scheme: light) { :root:not([data-theme=dark]) {
+    color-scheme: light;
+    --bg: #f3f0e9; --panel: #fcfbf7; --raised: #efece4; --line: #d6d1c5; --line-soft: #e7e3d9;
+    --frame: #8b8778;
+    --fg: #1b1f24; --muted: #585e66; --accent: #0e6a5c; --link: #0b5c50;
+    --button: #0e6a5c; --button-fg: #ffffff; --button-hover: #0a5448;
+    --field: #ffffff; --control: #efece4; --control-hover: #e3dfd4;
+    --pick: #dcefe9; --warn: #8a4b00; --error: #b3261e; --danger-bg: #f7dcdc; --danger-line: #c47b7b;
+  } }
+  :root[data-theme=light] {
+    color-scheme: light;
+    --bg: #f3f0e9; --panel: #fcfbf7; --raised: #efece4; --line: #d6d1c5; --line-soft: #e7e3d9;
+    --frame: #8b8778;
+    --fg: #1b1f24; --muted: #585e66; --accent: #0e6a5c; --link: #0b5c50;
+    --button: #0e6a5c; --button-fg: #ffffff; --button-hover: #0a5448;
+    --field: #ffffff; --control: #efece4; --control-hover: #e3dfd4;
+    --pick: #dcefe9; --warn: #8a4b00; --error: #b3261e; --danger-bg: #f7dcdc; --danger-line: #c47b7b;
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font-family: "Yu Gothic UI", "Meiryo", system-ui, sans-serif; font-size: 13px; line-height: 1.5; }
+
+  /* ---- Page */
+  header { padding: 10px 20px 14px; border-bottom: 1px solid var(--line); }
+  .topline { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 16px; margin-bottom: 8px; }
+  .prefs { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 18px; }
+  h1 { margin: 0 0 4px; font-size: 18px; line-height: 1.4; letter-spacing: .02em; }
+  /* The mark: a small die seen from a corner. */
+  h1::before { content: ""; display: inline-block; width: 9px; height: 9px; margin: 0 11px 0 3px;
+               background: var(--accent); transform: rotate(45deg); vertical-align: 2px; }
+  header p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.7; max-width: 84em; }
+  .home-link { display: inline-block; color: var(--muted); font-size: 12px; text-decoration: none; }
+  .home-link:hover { color: var(--fg); text-decoration: underline; }
+  .home-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .lang-switch, .theme-switch { margin: 0; color: var(--muted); font-size: 12px; }
+  .lang-switch a { color: var(--link); text-underline-offset: 3px; }
+  .lang-switch a[aria-current] { color: var(--fg); font-weight: 700; text-decoration: none; }
+  .theme-switch::before { content: "◐ " / ""; }
+  .theme-switch button { background: none; border: 0; border-radius: 0; padding: 0; min-height: 0; font: inherit;
+                         color: var(--link); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  .theme-switch button:hover { background: none; color: var(--fg); }
+  .theme-switch button[aria-pressed=true] { color: var(--fg); font-weight: 700; text-decoration: none; }
+
+  main { display: grid; gap: 20px; padding: 16px 20px 40px;
+         grid-template-columns: minmax(320px, 400px) minmax(0, 1fr); align-items: start; }
+  @media (max-width: 860px) { main { grid-template-columns: minmax(0, 1fr); padding-inline: 12px; } header, footer { padding-inline: 12px; } }
+
+  /* ---- Panel and tabs */
+  .panel { background: var(--panel); border: 1px solid var(--frame); border-radius: 6px; padding: 0 14px 16px; min-width: 0; }
+  .tabbar { display: flex; gap: 0; margin: 0 -14px; padding: 0; border-bottom: 1px solid var(--line);
+            position: sticky; top: 0; background: var(--raised); z-index: 2; border-radius: 5px 5px 0 0;
+            /* Labels too long for a narrow screen (another language) scroll here instead of widening the panel. */
+            overflow-x: auto; scrollbar-width: none; }
+  .tabbar button { flex: 1 0 auto; border: 0; border-radius: 0; white-space: nowrap; background: transparent;
+                   color: var(--muted); padding: 9px 6px 10px; font-size: 12.5px; }
+  .tabbar button:hover { background: transparent; color: var(--fg); }
+  .tabbar button[aria-selected=true] { color: var(--fg); font-weight: 700; background: var(--panel);
+                                        box-shadow: inset 0 -2px 0 var(--accent); }
+  .tabbar button:focus-visible { outline-offset: -2px; }
+  /* On a phone, five short tabs fit without scrolling. */
+  @media (max-width: 480px) { .tabbar button { padding-inline: 3px; font-size: 12px; } }
+
+  /* A section of the sheet: its name sits on the rule. */
+  fieldset { border: 0; border-top: 1px solid var(--line); margin: 18px 0 0; padding: 2px 0 0; min-width: 0; }
+  section > fieldset:first-child, form > fieldset:first-child { border-top-color: transparent; margin-top: 8px; }
+  legend { padding: 0 10px 0 0; color: var(--fg); font-size: 12px; font-weight: 700; letter-spacing: .08em; }
+  legend::before { content: ""; display: inline-block; width: 6px; height: 6px; margin: 0 9px 0 2px;
+                   background: var(--accent); transform: rotate(45deg); vertical-align: 1px; }
+
+  /* ---- Rows and controls */
+  .row { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 10px; align-items: center; margin-top: 8px; }
+  .row > label { color: var(--muted); font-size: 12.5px; }
+  .row.wide { grid-template-columns: minmax(0, 1fr); }
+  .row.sub > label { padding-left: 10px; border-left: 2px solid var(--line); }
+  .with-value { display: grid; grid-template-columns: minmax(0, 1fr) 52px; gap: 8px; align-items: center; }
+  .with-value output, .color-alpha output { color: var(--fg); text-align: right; font-family: var(--mono); font-size: 12px;
+                                            font-variant-numeric: tabular-nums; }
+  .pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; align-items: center; }
+  .trio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; align-items: center; }
+  .trio span { display: grid; gap: 2px; color: var(--muted); font-size: 11px; }
+  .color-alpha { display: grid; grid-template-columns: 56px minmax(0, 1fr) 44px; gap: 8px; align-items: center; }
+  .checks { display: grid; gap: 5px; }
+
+  select, input[type=text], input[type=number], textarea {
+    width: 100%; background-color: var(--field); color: var(--fg); font: inherit;
+    border: 1px solid var(--frame); border-radius: 4px; padding: 4px 8px; min-height: 28px; }
+  /* Own arrow for the pull-downs, drawn with two gradients so it follows the theme. */
+  select { appearance: none; -webkit-appearance: none; padding-right: 26px;
+    background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+    background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50%; background-size: 5px 5px; background-repeat: no-repeat; }
+  input[type=number] { font-family: var(--mono); }
+  select:hover, input[type=text]:hover, input[type=number]:hover, textarea:hover { border-color: var(--fg); }
+  input[type=color] { width: 100%; height: 28px; padding: 2px; background: var(--field);
+                      border: 1px solid var(--frame); border-radius: 4px; cursor: pointer; }
+  input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
+  input[type=color]::-webkit-color-swatch { border: 0; border-radius: 2px; }
+  input[type=color]::-moz-color-swatch { border: 0; border-radius: 2px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); height: 20px; margin: 0; }
+  input[type=checkbox], input[type=radio] { accent-color: var(--accent); width: 15px; height: 15px; vertical-align: -3px; margin: 0 5px 0 0; }
+  select:focus-visible, input:focus-visible, textarea:focus-visible, button:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 1px; }
+  .desc { margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.75; }
+  .desc b { color: var(--fg); }
+  .desc code { font-family: var(--mono); color: var(--fg); }
+  .check { color: var(--fg); cursor: pointer; }
+  .tag31 { display: inline-block; margin-left: 6px; padding: 0 5px; border: 1px solid var(--line); border-radius: 3px;
+           color: var(--muted); font-family: var(--mono); font-size: 10px; line-height: 1.5; vertical-align: 1px; }
+
+  button { background: var(--control); color: var(--fg); border: 1px solid var(--frame);
+           border-radius: 4px; padding: 5px 13px; font: inherit; cursor: pointer; }
+  button:hover { background: var(--control-hover); border-color: var(--fg); }
+  button.primary { background: var(--button); border-color: var(--button); color: var(--button-fg); font-weight: 700; }
+  button.primary:hover { background: var(--button-hover); border-color: var(--button-hover); }
+  button.small { padding: 3px 9px; font-size: 12px; }
+  button.danger:hover { background: var(--danger-bg); border-color: var(--danger-line); }
+  button:disabled { opacity: .45; cursor: default; }
+  .btns { display: flex; flex-wrap: wrap; gap: 5px; }
+
+  /* ---- Preview column */
+  .stage-wrap { position: sticky; top: 16px; display: grid; gap: 10px; min-width: 0; }
+  .stage { position: relative; overflow: hidden; border: 1px solid var(--frame); border-radius: 6px;
+           min-height: 240px; display: grid; place-items: center; padding: 28px 16px; }
+  .stage.bg-checker { background-color: #cfcfd6;
+    background-image: linear-gradient(45deg, #9a9aa5 25%, transparent 25% 75%, #9a9aa5 75%),
+                      linear-gradient(45deg, #9a9aa5 25%, transparent 25% 75%, #9a9aa5 75%);
+    background-size: 24px 24px; background-position: 0 0, 12px 12px; }
+  .stage.bg-dark { background-color: #26272e; }
+  .stage.bg-light { background-color: #f2f2f4; }
+  .stage.bg-scene { background: radial-gradient(ellipse at 30% 20%, #6d7fa8, transparent 60%),
+                    radial-gradient(ellipse at 80% 90%, #a8735a, transparent 55%), #2d3348; }
+  .frame-box { position: relative; outline: 1px dashed rgba(255, 64, 160, .85); outline-offset: 0; }
+  /* color-scheme must match the page inside, or Chromium paints the iframe opaque white (this page may be dark). */
+  .frame-box iframe { position: absolute; left: 0; top: 0; border: 0; background: transparent; transform-origin: 0 0; color-scheme: normal; }
+  .stage-info { position: absolute; left: 8px; bottom: 8px; padding: 1px 8px; border-radius: 3px; font-size: 11px;
+                color: #fff; background: rgba(0, 0, 0, .66); }
+
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .bar .spacer { flex: 1; }
+  .bar select { width: auto; }
+  .bar input[type=text] { width: 160px; }
+  .seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--frame); border-radius: 4px; overflow: hidden; }
+  .seg button { border: 0; border-right: 1px solid var(--line); border-radius: 0; padding: 4px 11px; background: transparent; }
+  .seg button:last-child { border-right: 0; }
+  .seg button:hover { background: var(--control); }
+  .seg button[aria-pressed=true] { background: var(--fg); color: var(--bg); font-weight: 700; }
+  .status { color: var(--muted); font-size: 12px; min-height: 1.5em; margin: 0; }
+  .status.error { color: var(--error); }
+  .size-note { color: var(--fg); font-size: 12.5px; }
+  .size-note b { font-family: var(--mono); font-size: 14px; color: var(--accent); }
+
+  .tester, .source-url { background: var(--panel); border: 1px solid var(--frame); border-radius: 6px; padding: 10px 12px; display: grid; gap: 8px; }
+  .tester h2, .source-url h2 { margin: 0; font-size: 12px; color: var(--muted); font-weight: 400; }
+  .source-url .missing { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+  .source-url .warn { color: var(--warn); font-size: 12px; line-height: 1.7; }
+  .desc.warn-text { color: var(--warn); }
+  .custom { display: grid; grid-template-columns: 130px 110px minmax(0, 1fr); gap: 5px; align-items: center; }
+  .custom input[type=text] { width: 100%; }
+  @media (max-width: 560px) { .custom { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .custom .grow { grid-column: 1 / -1; } }
+  /* Save / copy is where the work ends: its own box with the signal color on its edge. */
+  .source-url + .bar, .tester + .bar { padding: 10px 12px; border: 1px solid var(--frame); border-radius: 6px; background: var(--raised);
+                                       box-shadow: inset 3px 0 0 var(--accent); }
+
+  details.css-out summary { cursor: pointer; color: var(--muted); }
+  details.css-out textarea { margin-top: 8px; height: 280px; font-family: var(--mono); font-size: 12px; white-space: pre; }
+
+  /* ---- Notes and footer */
+  .note { color: var(--muted); font-size: 12px; line-height: 1.85; margin: 0; }
+  .note code { font-family: var(--mono); background: var(--field); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; color: var(--fg); }
+  .note h2 { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--fg); margin: 20px 0 6px; letter-spacing: .04em; }
+  .note h2::before { content: ""; flex: none; width: 6px; height: 6px; margin-left: 2px; background: var(--accent); transform: rotate(45deg); }
+  .note h2::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+  .note ol, .note ul { margin: 6px 0; padding-left: 1.5em; }
+  .note li::marker { color: var(--accent); }
+  .note b { color: var(--fg); }
+  .note a { color: var(--link); }
+  footer { border-top: 1px solid var(--line); padding: 14px 20px 40px; color: var(--muted); font-size: 12px; line-height: 1.9; }
+  footer a { color: var(--link); }
+
+  /* The font picker dialog (pcfonts.v2.js) reads the page variables; its fixed hover colors are set here. */
+  body .pcf-dialog { border-radius: 6px; border-color: var(--frame); }
+  body .pcf-list button.pcf-item:hover { background: var(--control); }
+  body .pcf-list button.pcf-item[aria-current=true] { background: var(--pick); }
+
+  /* ---- This tool only (character batch maker): one settings form (no tabs) with the image shelf, and a
+     stack of cards on the right (input, results with a CCFOLIA board sample, export, notes). The sample
+     keeps CCFOLIA's own colors in both themes; everything else uses the variables. */
+  :root { --note-line: #3f4470; --note-bg: #1f2135; --note-fg: #c9ccff; --warn-line: #6b5230; --warn-bg: #2a2218;
+          --read-line: #2f5b55; --read-fg: #8fdcd1; }
+  @media (prefers-color-scheme: light) { :root:not([data-theme=dark]) {
+    --note-line: #b9b7ae; --note-bg: #f4f3ee; --note-fg: #1d1c19; --warn-line: #d9b98a; --warn-bg: #fbf1e2;
+    --read-line: #9fcbc3; --read-fg: #0b5c50; } }
+  :root[data-theme=light] { --note-line: #b9b7ae; --note-bg: #f4f3ee; --note-fg: #1d1c19; --warn-line: #d9b98a; --warn-bg: #fbf1e2;
+    --read-line: #9fcbc3; --read-fg: #0b5c50; }
+
+  .panel > fieldset:first-child { border-top-color: transparent; margin-top: 8px; }
+  .stack { display: grid; gap: 16px; min-width: 0; }
+  .card { background: var(--panel); border: 1px solid var(--frame); padding: 12px 14px; display: grid;
+          grid-template-columns: minmax(0, 1fr); gap: 10px; min-width: 0; }
+  .card-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+  /* Card titles look like the section names on the left: the mark, then the name. */
+  .card-head h2 { margin: 0; color: var(--fg); font-size: 12px; font-weight: 700; letter-spacing: .08em; }
+  .card-head h2::before { content: ""; display: inline-block; width: 6px; height: 6px; margin: 0 9px 0 2px;
+    background: var(--accent); transform: rotate(45deg); vertical-align: 1px; }
+  .card .note { padding-bottom: 0; }
+  .note .warn { color: var(--warn); }
+  .summary { color: var(--muted); font-size: 12px; margin: 0; }
+  .summary b { color: var(--fg); }
+  .desc code, .note code { font-family: var(--mono); background: var(--field); border: 1px solid var(--line); border-radius: 3px;
+                           padding: 0 4px; color: var(--fg); }
+
+  /* Input: the two ways (memo / table), the boxes, and what goes with them. */
+  .mode { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .mode label { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 6px; align-items: start; padding: 8px 10px;
+                border: 1px solid var(--line); cursor: pointer; }
+  .mode label:has(input:checked) { border-color: var(--frame); background: var(--raised); box-shadow: inset 2px 0 0 var(--accent); }
+  .mode input { margin: 2px 0 0; }
+  .mode b { display: block; color: var(--fg); }
+  .mode span { color: var(--muted); font-size: 12px; line-height: 1.6; }
+  @media (max-width: 480px) { .mode { grid-template-columns: minmax(0, 1fr); } }
+  textarea#memo { min-height: 220px; resize: vertical; line-height: 1.7; font-size: 12.5px; font-family: var(--mono); }
+  textarea#table { min-height: 170px; resize: vertical; line-height: 1.7; font-size: 12.5px; font-family: var(--mono);
+                   white-space: pre; overflow: auto; tab-size: 12; }
+  textarea#optCommon { min-height: 70px; resize: vertical; line-height: 1.6; }
+  textarea#pasteJson { min-height: 70px; resize: vertical; margin-top: 8px; font-family: var(--mono); font-size: 12px; }
+  textarea[readonly] { opacity: .55; cursor: not-allowed; }
+  .memo-opts { display: flex; flex-wrap: wrap; gap: 8px 14px; }
+  .memo-opts label { display: grid; gap: 2px; color: var(--muted); font-size: 11px; flex: 1 1 14em; min-width: 0; }
+  .rules { margin: 6px 0 8px; padding-left: 1.4em; }
+  .rules li::marker { color: var(--accent); }
+  details.help > summary, details.labels > summary, details.source > summary, details.paste > summary { cursor: pointer; }
+  details.help > summary { color: var(--muted); font-size: 12px; }
+  details.help > summary:hover { color: var(--fg); }
+  details.labels > summary, details.source > summary, details.paste > summary { color: var(--fg); }
+  details.paste { border-top: 1px solid var(--line-soft); padding-top: 10px; }
+  details.paste summary .summary { margin-left: 8px; }
+  details.paste .btns { margin-top: 8px; }
+  details.labels .cols { margin-top: 8px; }
+
+  /* Column and label choices: a name and a pull-down. */
+  .cols { display: flex; flex-wrap: wrap; gap: 6px; }
+  .col { display: grid; gap: 2px; padding: 5px 7px; border: 1px solid var(--line); background: var(--raised);
+         color: var(--fg); font-size: 11px; max-width: 100%; }
+  .col span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 14em; font-weight: 700; }
+  .col select { width: auto; max-width: 100%; min-height: 24px; padding: 2px 24px 2px 6px; font-size: 11px; }
+  .col.off { opacity: .55; }
+  .col.unknown span::before { content: "？"; color: var(--warn); }
+
+  /* Notices. */
+  .warnings { border: 1px solid var(--warn-line); background: var(--warn-bg); padding: 8px 10px; color: var(--warn); font-size: 12px; line-height: 1.8; }
+  .edited-note { border: 1px solid var(--note-line); background: var(--note-bg); padding: 8px 10px; color: var(--note-fg); font-size: 12px;
+                 display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+  p.edited-note { margin: 0; }
+
+  /* The image shelf. Thumbnails of transparent images sit on a dark checker in both themes. */
+  .drop { margin-top: 10px; border: 1px dashed var(--frame); padding: 18px 12px; text-align: center;
+          color: var(--muted); font-size: 12px; line-height: 1.7; cursor: pointer; }
+  .drop span { font-size: 11px; }
+  .drop:hover, .drop.over { border-color: var(--accent); border-style: solid; color: var(--fg); background: var(--raised); }
+  .drop:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin-top: 10px; }
+  .gallery .desc { grid-column: 1 / -1; margin: 0; }
+  .imgcell { display: grid; gap: 4px; padding: 6px; border: 1px solid var(--line); background: var(--raised); min-width: 0; }
+  .imgcell img, .noimg { width: 100%; height: 72px; object-fit: contain;
+          background: repeating-conic-gradient(#1f2029 0% 25%, #16171d 0% 50%) 50% / 12px 12px; }
+  .noimg { display: grid; place-items: center; color: #ffb86b; font-size: 11px; }
+  .imgcell input[type=text] { padding: 2px 5px; font-size: 11px; min-height: 0; }
+  .imgcell .info { color: var(--muted); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .imgcell .info.use { color: var(--accent); }
+  .imgcell .info.unused { color: var(--muted); }
+  .imgcell .info.warn { color: var(--warn); }
+  .imgcell button { justify-self: start; }
+  .img-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .img-row select { flex: 1 1 8em; width: auto; min-width: 0; }
+  .img-note { color: var(--muted); font-size: 11px; line-height: 1.6; }
+  .img-note.warn { color: var(--warn); }
+  .thumb { width: 64px; height: 84px; background: var(--field); border: 1px dashed var(--frame); flex: none;
+           display: grid; place-items: center; overflow: hidden; color: var(--muted); font-size: 11px; text-align: center; }
+  .thumb img { width: 100%; height: 100%; object-fit: contain; object-position: center bottom; }
+
+  /* The sample: CCFOLIA's board and the status list at its top left, in CCFOLIA's own colors.
+     Classes starting with ccf- copy its look (main.*.js, 1.37). */
+  .stage { display: grid; grid-template-columns: minmax(0, 250px) minmax(0, 1fr); gap: 8px; place-items: stretch;
+           padding: 8px; min-height: 250px;
+           background: linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px) 0 0 / 18px 18px,
+                       linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px) 0 0 / 18px 18px,
+                       radial-gradient(ellipse at 30% 20%, #56658a, transparent 60%),
+                       radial-gradient(ellipse at 80% 90%, #8a6050, transparent 55%), #2d3348; }
+  @media (max-width: 560px) { .stage { grid-template-columns: minmax(0, 1fr); } }
+  .stage .empty { grid-column: 1 / -1; align-self: center; text-align: center; color: #d6d8e6; font-size: 12px; }
+  .ccf-item { display: flex; align-items: flex-start; }
+  .ccf-item.off { opacity: .4; }
+  .ccf-icon-wrap { position: relative; flex: none; }
+  .ccf-icon { width: 40px; height: 40px; border-radius: 4px; border: 1px solid #f5f5f5; background: rgba(0, 0, 0, .64); overflow: hidden;
+              display: flex; align-items: flex-start; justify-content: center; }
+  .ccf-icon img { max-width: 100%; max-height: 100%; object-position: top; }
+  .ccf-badge { position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px;
+               background: #f5f5f5; color: #424242; font: 500 12px/20px "Roboto", "Helvetica", "Arial", sans-serif; text-align: center; }
+  .ccf-bars { margin-left: 4px; max-width: 210px; display: flex; flex-wrap: wrap; }
+  .ccf-bar { margin: 2px; width: 96px; height: 16px; position: relative; }
+  .ccf-back { position: absolute; inset: 0; border-radius: 1px; background: #f5f5f5; opacity: .38; }
+  .ccf-fill { position: absolute; left: 0; top: 0; height: 16px; border-radius: 1px; background: #f5f5f5; }
+  .ccf-text { position: absolute; inset: 0; display: flex; justify-content: space-between; z-index: 1; padding: 2px 1px 1px;
+              font: 800 12px/1 "Roboto", "Helvetica", "Arial", sans-serif; color: #424242;
+              text-shadow: 1px 1px 0 #f5f5f5, -1px -1px 0 #f5f5f5, -1px 1px 0 #f5f5f5, 1px -1px 0 #f5f5f5, 0 1px 0 #f5f5f5, 0 -1px 0 #f5f5f5, -1px 0 0 #f5f5f5, 1px 0 0 #f5f5f5; }
+  .ccf-text span:first-child { max-width: 60px; overflow: hidden; white-space: nowrap; }
+  .mock-note { margin-top: 8px; color: #e4e6f2; font-size: 11px; line-height: 1.6; text-shadow: 0 1px 2px #000; }
+  .mock-board { display: grid; justify-items: center; align-content: end; gap: 4px; min-height: 200px; }
+  .piece { display: grid; place-items: end center; max-width: 100%; }
+  .piece img { width: 100%; height: 100%; object-fit: contain; object-position: center bottom; }
+  .piece span { align-self: center; color: #d6d8e6; font-size: 11px; border: 1px dashed rgba(255,255,255,.4); padding: 6px 8px; border-radius: 6px; }
+  .piece.off { opacity: .45; }
+  .mock-size { color: #e4e6f2; font-size: 11px; text-shadow: 0 1px 2px #000; }
+
+  /* Under the sample: parameters, faces, palette, and the selected character's source lines. */
+  .details { display: grid; gap: 6px; font-size: 12px; }
+  .details .k { color: var(--muted); font-size: 11px; }
+  .facestrip { display: flex; flex-wrap: wrap; gap: 6px; }
+  .facecell { width: 60px; display: grid; gap: 2px; font-size: 10px; text-align: center; color: var(--muted); }
+  .facecell img, .facecell .noimg { width: 60px; height: 60px; }
+  .facecell img { object-fit: contain; background: var(--field); border: 1px solid var(--line); }
+  .facecell span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .palette { margin: 0; padding: 6px 8px; background: var(--field); border: 1px solid var(--line); max-height: 110px; overflow: auto;
+             white-space: pre-wrap; word-break: break-all; font-family: var(--mono); font-size: 12px; line-height: 1.6; }
+  .srcs { display: grid; gap: 2px; margin-top: 6px; max-height: 320px; overflow: auto; border: 1px solid var(--line); padding: 4px; }
+  .src { display: grid; grid-template-columns: 2.6em minmax(0, 1.2fr) minmax(0, 1fr); gap: 8px; padding: 4px 6px; font-size: 12px; align-items: start; }
+  .src .ln { color: var(--muted); font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+  .src .tx { white-space: pre-wrap; word-break: break-all; font-family: var(--mono); }
+  .src .rd { display: flex; flex-wrap: wrap; gap: 3px; }
+  .src .chip { border: 1px solid var(--read-line); color: var(--read-fg); padding: 0 5px; font-size: 11px; white-space: nowrap; }
+  .src .chip.miss { border-color: var(--warn-line); color: var(--warn); white-space: normal; }
+  .src .chip.none { border-color: var(--line); color: var(--muted); }
+  .src.skip .tx, .src.section .tx { color: var(--muted); }
+  .src.partial, .src.unread { background: var(--warn-bg); }
+  @media (max-width: 560px) { .src { grid-template-columns: 2.2em minmax(0, 1fr); } .src .rd { grid-column: 2; } }
+
+  /* The list of characters. */
+  .table-wrap { max-height: 380px; overflow: auto; border: 1px solid var(--line); }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { padding: 6px 8px; border-bottom: 1px solid var(--line-soft); text-align: left; vertical-align: middle; }
+  th { white-space: nowrap; position: sticky; top: 0; background: var(--raised); color: var(--muted); font-weight: 400; z-index: 1; }
+  td.num { color: var(--muted); font-family: var(--mono); font-variant-numeric: tabular-nums; width: 3.5em; white-space: nowrap; }
+  td.pic { width: 40px; }
+  td.pic img { width: 28px; height: 36px; object-fit: contain; display: block; }
+  td.title { max-width: 14em; word-break: break-all; }
+  td.stat { color: var(--muted); word-break: break-all; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover { background: var(--control); }
+  tbody tr[aria-selected=true] { background: var(--pick); }
+  tbody tr[aria-selected=true] > td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
+  .badge { display: inline-block; margin-left: 4px; padding: 0 5px; font-size: 10px; vertical-align: 1px; white-space: nowrap; }
+  .badge.unknown-b { border: 1px solid var(--warn-line); color: var(--warn); }
+  .badge.narr { border: 1px solid var(--line); color: var(--muted); }
+  .badge.face { border: 1px solid var(--frame); color: var(--accent); }
+  .empty-list { color: var(--muted); padding: 14px; text-align: center; }
+
+  /* The editor for one character. */
+  .editor { border: 1px solid var(--line); padding: 10px 12px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; background: var(--raised); min-width: 0; }
+  .editor.over { border-color: var(--accent); }
+  .editor h3 { margin: 0; font-size: 12px; color: var(--muted); font-weight: 400; }
+  .editor h4 { margin: 0 0 6px; font-size: 11px; color: var(--muted); font-weight: 400; letter-spacing: .08em; }
+  .editor-body { display: grid; gap: 12px; min-width: 0; }
+  .editor label { display: grid; gap: 2px; color: var(--muted); font-size: 11px; min-width: 0; }
+  .editor label.check { display: block; color: var(--fg); font-size: 12px; }
+  .editor .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .editor .two-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .editor textarea { min-height: 96px; resize: vertical; line-height: 1.6; }
+  .ed-block { display: grid; gap: 6px; align-content: start; min-width: 0; }
+  .ed-block > button { justify-self: start; }
+  .pic-row, .face-row { display: flex; gap: 10px; align-items: center; min-width: 0; }
+  .side { display: grid; gap: 6px; flex: 1; min-width: 0; }
+  .face-row .thumb { width: 40px; height: 52px; font-size: 10px; }
+  .auto-face { color: var(--muted); font-size: 12px; min-width: 0; word-break: break-all; }
+  .kv { display: grid; gap: 4px; align-items: center; }
+  .kv.three { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) auto auto; }
+  .kv.two { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto; }
+  .flags { display: grid; gap: 4px; }
+  @media (max-width: 640px) { .editor .grid, .editor .two-col { grid-template-columns: minmax(0, 1fr); } }
+
+  /* Corners: boxes 6px, parts 4px, as in the shared block. */
+  .card { border-radius: 6px; }
+  .mode label, .drop, .imgcell, .warnings, .edited-note, .table-wrap, .editor, .col, .srcs, .palette, .thumb { border-radius: 4px; }
+  .src .chip, .badge { border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="topline">
+    <a class="home-link" href="https://shiki365.github.io/">‹ shiki365 のツール置き場</a>
+    <div class="prefs">
+      <p class="lang-switch" data-lang-switch></p>
+      <p class="theme-switch" data-theme-switch></p>
+    </div>
+  </div>
+  <h1>キャラクター一括メーカー</h1>
+  <p>シナリオに出てくる NPC を数行のメモ書きで打ち込む（または表を貼る）と、ココフォリアのキャラクター（駒）をまとめて作ります。「×3」で同じ敵を増やすことも、キャラクター作成サイトで作った駒を取り込むこともできます。ステータス・パラメータ・チャットパレット・立ち絵・表情の差分まで入ったルームデータ（ZIP）を書き出すので、ココフォリアで読み込むだけで駒が並びます。すべてブラウザの中だけで処理され、入力した内容や画像がどこかに送られることはありません。ココフォリアの非公式のツールです。</p>
+</header>
+
+<main>
+  <div class="panel">
+    <fieldset>
+      <legend>画像の置き場（<span id="imageCount">0</span> 枚）</legend>
+      <p class="desc" data-i18n>立ち絵と差分の画像を入れます。<b>画像の名前が駒の名前と同じなら立ち絵</b>に、<b>「名前_笑顔」なら差分「笑顔」</b>に、自動でなります（区切りは <code>_</code> <code>-</code> <code>@</code> 空白 かっこ）。名前は下の欄で直せます。画像はこのブラウザの中に保存されます。</p>
+      <div class="drop" id="drop" role="button" tabindex="0">ここに画像をドラッグ＆ドロップ／クリックして選ぶ（何枚でも）<br><span>PNG・JPEG・GIF・WebP　1 枚 5 MB まで</span></div>
+      <div class="gallery" id="gallery"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>全体の設定</legend>
+      <div class="row"><label for="optActive">盤面</label>
+        <select id="optActive">
+          <option value="0">一覧だけ（盤面には出さない）</option>
+          <option value="1">盤面に出す（横に並べる）</option>
+        </select></div>
+      <div class="row"><label for="optSize">駒サイズ</label>
+        <input type="number" id="optSize" min="1" max="100" step="1" value="4"></div>
+      <p class="desc">「一覧だけ」なら、読み込んだ駒はキャラクター一覧に入り、使うときに盤面へ出せます。</p>
+      <div class="row"><label>NPC 向け</label><div class="checks">
+        <label class="check"><input type="checkbox" id="optSecret"> ステータスを非公開にする</label>
+        <label class="check"><input type="checkbox" id="optHide"> 盤面のキャラクター一覧に表示しない</label>
+      </div></div>
+      <p class="desc">敵の HP を PL に見せたくないときに。どの設定も、駒ごとに変えるときは手直しの欄で（表なら「盤面」「駒サイズ」「非公開」の列でも）。</p>
+      <div class="row" style="align-items: start;"><label for="optCommon">共通のチャットパレット</label>
+        <textarea id="optCommon" spellcheck="false"></textarea></div>
+      <p class="desc" data-i18n>すべての駒のチャットパレットの最後に足します。<code>{回避}</code> のように書くと、ココフォリアがその駒のパラメータの値に置き換えます。</p>
+    </fieldset>
+
+    <fieldset>
+      <legend>保存</legend>
+      <div class="btns">
+        <button type="button" class="small" id="undo" disabled>元に戻す</button>
+        <button type="button" class="small" id="redo" disabled>やり直す</button>
+      </div>
+      <div class="btns" style="margin-top: 6px;">
+        <button type="button" class="small" id="saveProject">プロジェクトを保存</button>
+        <button type="button" class="small" id="loadProject">プロジェクトを開く</button>
+        <button type="button" class="small danger" id="resetAll">最初に戻す</button>
+      </div>
+      <p class="desc">入力と設定、置き場の画像は、このブラウザに自動で保存されます。別の PC やブラウザに移すときは「プロジェクトを保存」を使ってください（置き場の画像もファイルに入ります）。</p>
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+    </fieldset>
+  </div>
+
+  <div class="stack">
+    <section class="card">
+      <div class="card-head">
+        <h2 id="inputTitle">NPC を入力する</h2>
+        <button type="button" class="small" id="fillSample">例を入れる</button>
+      </div>
+      <div class="mode" role="radiogroup" aria-label="入力のしかた">
+        <label><input type="radio" name="mode" value="memo"><span><b>メモ書き・シナリオから貼る</b>数行で打つか、シナリオの NPC のデータをそのまま貼る</span></label>
+        <label><input type="radio" name="mode" value="table"><span><b>表を貼る</b>スプレッドシートの表から、1 行に 1 体</span></label>
+      </div>
+
+      <p class="edited-note" id="inputLocked" hidden>一覧を手直ししているので、入力欄は変えられません。下の「確定して、次の NPC へ」を押すと、手直しを残したまま入力欄が空になります。</p>
+      <textarea id="memo" data-mode="memo" spellcheck="false" aria-labelledby="inputTitle"></textarea>
+      <div class="memo-opts" data-mode="memo">
+        <label>技能の判定<select id="optRoll">
+          <option value="auto">自動（6 版は CCB&lt;=、7 版は CC&lt;=）</option>
+          <option value="ccb">CCB&lt;=（クトゥルフ 6 版）</option>
+          <option value="cc">CC&lt;=（クトゥルフ 7 版）</option>
+          <option value="d100">1d100&lt;=（そのほか）</option>
+          <option value="none">判定にしない（パラメータにする）</option>
+        </select></label>
+        <label>×N で増やしたときの名前<select id="optSuffix">
+          <option value="alpha">A・B・C…</option>
+          <option value="number">1・2・3…</option>
+        </select></label>
+      </div>
+      <div class="checks" data-mode="memo">
+        <label class="check"><input type="checkbox" id="optSecretRoll"> <span data-i18n>判定をシークレットダイスにする（<code>sCCB&lt;=</code>。結果は KP にだけ見えます）</span></label>
+        <label class="check"><input type="checkbox" id="optProse"> <span data-i18n>説明の文もキャラクターメモに入れる（<b>参加者にも見えます</b>。秘匿に注意）</span></label>
+      </div>
+      <details class="help" data-mode="memo" open>
+        <summary>書き方の説明</summary>
+      <div class="desc" style="margin: 6px 0 0;">
+        <span data-i18n><b>空行で区切って 1 体</b>。1 行目が名前で、<code>黒い影 ×3</code> と書くと 黒い影A〜C の 3 体になります（立ち絵は「黒い影」の画像を共有）。2 行目からは「<b>名前 数値</b>」を並べるだけです。</span>
+        <ul class="rules">
+          <li data-i18n><code>HP 20</code> <code>SAN 55/99</code> … HP・MP・SAN と <code>値/最大</code> の形は<b>ステータス</b></li>
+          <li data-i18n><code>STR 50</code> <code>DEX 80</code> <code>装甲 2</code> <code>DB +1d4</code> … 能力値などは<b>パラメータ</b>（DEX はイニシアチブにも入ります）</li>
+          <li data-i18n><code>回避 40</code> <code>かぎ爪 70 1d6+1d4</code> … そのほかは技能として<b>チャットパレット</b>に（<code>CCB&lt;=70 【かぎ爪】</code> と、ダメージの行）</li>
+          <li data-i18n><code>メモ: …</code> の行は<b>キャラクターメモ</b>に。<code>CCB&lt;=50 【幸運】</code> のようなコマンドの行は、そのままチャットパレットに。<code>立ち絵: 画像の名前</code> も書けます</li>
+        </ul>
+        <span data-i18n><b>シナリオの NPC のデータは、そのまま貼っても読めます</b>。<code>STR12</code> <code>〈回避〉60％</code> <code>成功値70</code> <code>STR／DEX 60／50</code> <code>50%(25/10)</code> のような書き方の違いや、PDF からのコピーで崩れた所（<code>D EX</code> <code>7 5</code>、次の行にずれた数字）も読み取ります。「技能:」「武器:」「呪文:」のような見出しも見分けます。</span>
+        <ul class="rules">
+          <li data-i18n>うまく読めないときは、一覧で駒を選ぶと、<b>元の文の 1 行ずつに、何として読んだか</b>が出ます。読めなかった数字は橙で出ます</li>
+          <li data-i18n>直し方: 何体かが 1 体にまとまったら、<b>NPC の間に空行</b>を入れる。名前が違ったら、<b>1 行目に名前だけ</b>を書く。数字が読めなかったら、<b>「目星 60」のようにラベルのすぐ後ろに数字</b>を書く</li>
+          <li data-i18n>ステータスにしたいものが技能になった（例: <code>警戒値</code>）ときは、下の「読み取ったラベル」で選び直せます。選び直しはこのブラウザが覚えていて、次の NPC にも効きます</li>
+        </ul>
+      </div>
+      </details>
+
+      <textarea id="table" data-mode="table" spellcheck="false" wrap="off" aria-labelledby="inputTitle"></textarea>
+      <details class="help" data-mode="table" open>
+        <summary>書き方の説明</summary>
+      <p class="desc" style="margin: 6px 0 0;" data-i18n>Google スプレッドシートや Excel の表を、見出しの行ごとコピーして貼ります（1 行目は見出し、2 行目から 1 行に 1 体。CSV でも可）。<b>名前</b>・メモ・イニシアチブ・チャットパレット・立ち絵 などの見出しはそのまま読み、それ以外の列は、<code>10/12</code> の形か HP・MP・SAN なら<b>ステータス</b>（<code>10</code> だけなら最大値も 10）、ほかは<b>パラメータ</b>にします。違っていたら下で選び直せます。</p>
+      </details>
+      <div id="columnsRow" hidden>
+        <p class="desc" style="margin: 0 0 6px;">列の使い方</p>
+        <div class="cols" id="columns"></div>
+      </div>
+      <details class="labels" id="labelsRow" hidden>
+        <summary>読み取ったラベル（<span id="labelsCount">0</span> 種類）と、その使い方</summary>
+        <p class="desc" data-i18n>違っていたら選び直します。<b>？</b> の付いたものは、よく使う技能・能力値の一覧に無い名前です。選び直しはこのブラウザが覚えていて、ほかの NPC やほかのシナリオにも効きます。</p>
+        <div class="cols" id="labels"></div>
+      </details>
+      <div class="warnings" id="warnings" hidden></div>
+      <details class="paste">
+        <summary>キャラクター作成サイトで作った駒を取り込む<span class="summary" id="pasteInfo"></span></summary>
+        <p class="desc" data-i18n>いあきゃら・キャラエノ・ゆとシートなどの「ココフォリア出力（コマ出力）」でコピーしたものを貼ると、1 体として一覧の最後に入ります。そのままココフォリアに貼る方法では入らない<b>立ち絵と差分</b>を、ここで付けて書き出せます。何体でも続けて取り込めます。</p>
+        <textarea id="pasteJson" spellcheck="false" aria-label="キャラクター作成サイトでコピーした駒のデータ" placeholder='{"kind":"character","data":{"name":"…"}}'></textarea>
+        <div class="btns">
+          <button type="button" class="small" id="pasteAdd">取り込む</button>
+          <button type="button" class="small danger" id="pasteClear" hidden>取り込んだ駒を消す</button>
+        </div>
+        <p class="status" id="pasteStatus" role="status" aria-live="polite"></p>
+      </details>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>できあがり（<span id="count">0</span> 体）</h2>
+        <button type="button" id="confirmChars" disabled>確定して、次の NPC へ</button>
+      </div>
+      <p class="summary" id="summary"></p>
+      <p class="desc" style="margin: 0;" data-i18n>シナリオから 1 体ずつ貼るときは、読み取れたのを確かめてから<b>「確定して、次の NPC へ」</b>を押してください。今の駒が一覧に残り、入力欄が空になるので、次の NPC を貼れます（間違えたら「元に戻す」で戻せます）。</p>
+      <div class="edited-note" id="editedNote" hidden>
+        <span>一覧を手直ししています。このあいだ入力欄は変えられません。続けて入力するには「確定して、次の NPC へ」（手直しは残ります）、手直しを捨てるなら「入力から作り直す」。</span>
+        <button type="button" class="small" id="rebuild">入力から作り直す</button>
+      </div>
+      <p class="desc" style="margin: 0;">一覧をクリックすると、ココフォリアでのおおよその見え方（盤面の左上に出るステータスと、駒）と、手直しの欄が出ます。</p>
+      <div class="stage" aria-label="ココフォリアでの見え方の見本">
+        <p class="empty" id="mockEmpty">一覧から 1 体選ぶと、ここに見本が出ます</p>
+        <div id="mock" hidden style="display: contents;">
+          <div>
+            <div class="ccf-item" id="mockItem">
+              <div class="ccf-icon-wrap"><div class="ccf-icon" id="mockIcon"></div><span class="ccf-badge" id="mockInit">0</span></div>
+              <div class="ccf-bars" id="mockBars"></div>
+            </div>
+            <div class="mock-note" id="mockNote"></div>
+          </div>
+          <div class="mock-board">
+            <div class="piece" id="mockPiece"></div>
+            <div class="mock-size" id="mockSize"></div>
+          </div>
+        </div>
+      </div>
+      <div class="details">
+        <div id="mockParamsRow" hidden><div class="k">パラメータ</div><div id="mockParams"></div></div>
+        <div id="mockFacesRow" hidden><div class="k">差分</div><div class="facestrip" id="mockFaces"></div></div>
+        <div id="mockPaletteRow" hidden><div class="k">チャットパレット（共通のものも含む）</div><pre class="palette" id="mockPalette"></pre></div>
+      </div>
+      <details class="source" id="sourceRow" hidden open>
+        <summary>この駒の元の文と、読み取ったもの</summary>
+        <div class="srcs" id="sourceRows"></div>
+      </details>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>行</th><th>立ち絵</th><th>名前</th><th>ステータス</th><th>パレット</th></tr></thead>
+          <tbody id="chars"></tbody>
+        </table>
+      </div>
+      <div class="btns"><button type="button" class="small" id="addChar">＋ 駒を 1 体足す</button></div>
+      <div class="editor" id="editor" hidden>
+        <h3>選んだ 1 体を手直し（画像をここにドロップすると、この駒の立ち絵になります）</h3>
+        <div class="editor-body" id="editorBody"></div>
+        <div class="btns">
+          <button type="button" class="small" id="edUp">↑ 上へ</button>
+          <button type="button" class="small" id="edDown">↓ 下へ</button>
+          <button type="button" class="small" id="edCopy">複製</button>
+          <button type="button" class="small danger" id="edDelete">この 1 体を削除</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>書き出し</h2>
+        <button type="button" class="primary" id="exportZip" disabled>ルームデータ（ZIP）を書き出す</button>
+      </div>
+      <p class="summary" id="exportSummary"></p>
+      <div class="card-head">
+        <p class="desc" style="margin: 0; flex: 1 1 16em;" data-i18n>ルームデータで入れた画像は、ココフォリアの「自分の画像の一覧」には入りません。あとで立ち絵を選び直したり、ほかの部屋でも使うなら、素材も書き出して、画像を選ぶ画面にドロップしてください（<code>立ち絵/アリス.png</code> <code>差分/アリス_笑顔.png</code> のように、駒の名前で入っています）。</p>
+        <button type="button" id="exportAssets" disabled>素材（ZIP）を書き出す</button>
+      </div>
+      <p class="status" id="exportStatus" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="card">
+      <div class="note">
+        <h2 style="margin-top: 0;">ココフォリアでの読み込みかた</h2>
+        <ol>
+          <li data-i18n>ルームに <b>GM（ルームマスター・サブルームマスター）</b>として入る。ゲストのログインでは読み込めません</li>
+          <li>左上のルーム名 →「ルーム設定」→「ルームデータ」→「ルームデータのインポート」の「インポート」で、書き出した ZIP を選ぶ（盤面に ZIP をドラッグ＆ドロップしても読み込めます）</li>
+          <li data-i18n>「外部ツールで作成および編集されたデータです。信頼できるデータのみ取り込むようにしてください。」と出るので、このツールで作ったものなら OK。<b>このツールのデータは、いつもこの確認が出ます</b></li>
+          <li>駒は、読み込んだ人の「キャラクター一覧」に入力の順で並びます。「盤面に出す」にした駒は、盤面に横に並んで出ます</li>
+        </ol>
+        <h2>知っておいてほしいこと</h2>
+        <ul>
+          <li data-i18n>読み込むと駒が<b>追加</b>されます。すでにある駒や盤面、シナリオテキストは変わりません。同じ ZIP を 2 回読み込んでも増えません（同じ駒が上書きされます）。いらなくなったら、キャラクター一覧から削除してください</li>
+          <li>駒の持ち主は、読み込んだ人になります。PL の駒として使うなら、PL に自分で作り直してもらうか、駒をコピーして渡してください</li>
+          <li data-i18n>立ち絵と差分は<b>画像ファイル</b>で入れます。ココフォリアの駒は、外のサイトの画像の URL を受け付けません</li>
+          <li>1 つの ZIP に入れられる駒は 500 体まで。画像は 1 枚 5 MB まで</li>
+          <li>置き場の画像は、このブラウザの中にだけ保存されます（ブラウザのサイトデータを消すと消えます）。大事なものは「プロジェクトを保存」でファイルにも残してください</li>
+          <li data-i18n>画像は読み込んだときにココフォリアへアップロードされます（ルームデータの画像と同じ共有の置き場）。<b>ほかの人の立ち絵を使うときは、描いた人の許可の範囲で</b></li>
+          <li data-i18n><b>自分で作ったルームで使ってください</b>。購入したシナリオ（CCFOLIA GAMES など）のルームデータは、改変が禁止されています。このツールは、ルームデータを読み込んで書き換えることはしません</li>
+          <li class="warn">ココフォリアの非公式のツールです。ココフォリアのアップデートで、読み込めなくなることがあります（CCFOLIA 1.37.6、2026-10-30 に確認）</li>
+        </ul>
+        <h2>シナリオテキストもまとめて作るなら</h2>
+        <p data-i18n>台本や描写の文章からシナリオテキストをまとめて作る <a href="https://shiki365.github.io/scenario-text-maker/">シナリオテキストメーカー</a> もあります。</p>
+      </div>
+    </section>
+  </div>
+</main>
+
+<input type="file" id="projectFile" accept=".json,application/json" hidden>
+<input type="file" id="imageFile" accept="image/png,image/jpeg,image/gif,image/webp" hidden>
+<input type="file" id="imageFiles" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden>
+
+<footer>
+  ブラウザだけで動く無料ツールです。作ったデータは自由に使えます。<br>
+  <span data-i18n>ココフォリアのデータの形が変わると、読み込めなくなることがあります。いずれのサービスとも関係のない<strong>非公式</strong>のツールです。</span><br>
+  <a href="https://shiki365.github.io/">ほかのツールも見る（shiki365 のツール置き場）</a> ・ <a href="https://shiki365.github.io/#contact">不具合の報告・感想</a> ・ <a href="https://marshmallow-qa.com/jisg2c3imbza76d">ほしいツールの要望（マシュマロ）</a> ・ <a href="https://sabunomisogi.booth.pm/items/8891048">開発を応援する（BOOTH）</a><br>
+  <span>v1.4</span> ・ <span>最終更新</span> 2026-11-17
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="words.v1.js"></script>
+<script src="samples.v1.js"></script>
+<script src="parse.v1.js?v=6"></script>
+<script src="roomdata.v1.js?v=1"></script>
+<script src="app.v1.js?v=11"></script>
+</body>
+</html>
